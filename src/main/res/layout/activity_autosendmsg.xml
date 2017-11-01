@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    >
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="right"
+    android:weightSum="1"
+    >
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:layout_weight="0.8"
+        android:text="宗晖机器人" />
+
+    <ImageView
+        android:id="@+id/autosendmsg_setting"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="right|center"
+        android:src="@drawable/setting" />
+
+</LinearLayout>
+
+    <EditText
+        android:id="@+id/autosendmsg_Text"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_weight="1"
+        android:ems="10"
+        android:inputType="textPersonName"
+        android:text="Name" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom">
+
+        <Button
+            android:id="@+id/autosendmsg_begain"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="开始录音" />
+
+        <Button
+            android:id="@+id/autosendmsg_stop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="暂停" />
+
+        <Button
+            android:id="@+id/autosendmsg_cancle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="取消" />
+
+    </LinearLayout>
+    <Button
+        android:id="@+id/speechSynthesis_person_select"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:text="发音人"
+        />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/speechSynthesis_begain"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="开始合成"
+            android:layout_weight="1"
+            />
+        <Button
+            android:id="@+id/speechSynthesis_cancle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="取消"
+            />
+        <Button
+            android:id="@+id/speechSynthesis_stop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="暂停播放"
+            />
+        <Button
+            android:id="@+id/speechSynthesis_continue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="继续播发"
+            />
+    </LinearLayout>
+
+</LinearLayout>
