@@ -19,7 +19,7 @@ import zh_wxassistant.com.service.assistantService;
  */
 public class JsonParser {
 
-	public static String parseIatResult(RecognizerResult results,HashMap<String, String> mIatResults) {
+	public static   String parseIatResult(RecognizerResult results,HashMap<String, String> mIatResults) {
 		StringBuffer ret = new StringBuffer();
 		try {
 			JSONTokener tokener = new JSONTokener(results.getResultString());

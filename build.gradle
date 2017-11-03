@@ -42,4 +42,5 @@ dependencies {
     implementation files('libs/Msc.jar')
     implementation files('libs/Sunflower.jar')
     compile 'com.android.support:support-v4:23.+'
+    compile 'com.zt.maven.widget:refreshview:1.0.0'
 }

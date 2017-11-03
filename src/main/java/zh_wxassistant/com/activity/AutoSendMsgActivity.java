@@ -8,43 +8,37 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
-import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.EditText;
 import android.widget.Toast;
 import com.iflytek.cloud.ErrorCode;
-import com.iflytek.cloud.RecognizerListener;
-import com.iflytek.cloud.RecognizerResult;
 import com.iflytek.cloud.SpeechConstant;
 import com.iflytek.cloud.SpeechError;
 import com.iflytek.cloud.SpeechRecognizer;
 import com.iflytek.cloud.SpeechSynthesizer;
-import com.iflytek.cloud.SynthesizerListener;
 import com.iflytek.cloud.ui.RecognizerDialog;
-import com.iflytek.cloud.ui.RecognizerDialogListener;
 import com.iflytek.sunflower.FlowerCollector;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import zh_wxassistant.com.Iflytek.IflytekHelper;
 import zh_wxassistant.com.R;
+import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechRecognizerPresenter;
+import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechSynthesizerPresenter;
+import zh_wxassistant.com.mvp.view.Iflytek.SpeechRecognizerListener;
+import zh_wxassistant.com.mvp.view.Iflytek.SpeechSynthesizerListener;
 import zh_wxassistant.com.service.assistantService;
-import zh_wxassistant.com.util.JsonParser;
 import static zh_wxassistant.com.general.Constant.PREFER_NAME;
 
 /**
  * Created by Fzj on 2017/10/26.
  */
 
-public class AutoSendMsgActivity extends Activity implements View.OnClickListener {
+public class AutoSendMsgActivity extends Activity implements View.OnClickListener,SpeechRecognizerListener,SpeechSynthesizerListener {
     //语音听写
     private static String TAG = AutoSendMsgActivity.class.getSimpleName();
     // 语音听写对象
     private SpeechRecognizer mIat;
     // 语音听写UI
     private RecognizerDialog mIatDialog;
-    // 用HashMap存储听写结果
-    private HashMap<String, String> mIatResultsMap = new LinkedHashMap<String, String>();
     private EditText mResultText;
     private Toast mToast;
     //使用轻量级数据保存机制SharedPreferences记录用户操作状态
@@ -63,16 +57,17 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     //
     private String[] mCloudVoicersValue;
 
-    // 缓冲进度
-    private int mPercentForBuffering = 0;
-    // 播放进度
-    private int mPercentForPlaying = 0;
+    //mvp模式
+    public SpeechRecognizerPresenter speechRecognizerPresenter;
+    public SpeechSynthesizerPresenter speechSynthesizerPresenter;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.activity_autosendmsg);
+        speechRecognizerPresenter=new SpeechRecognizerPresenter(this);
+        speechSynthesizerPresenter=new SpeechSynthesizerPresenter(this);
         initViewAndEvent();
         mSharedPreferences = getSharedPreferences(PREFER_NAME, Activity.MODE_PRIVATE);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
@@ -122,9 +117,9 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                 FlowerCollector.onEvent(AutoSendMsgActivity.this, "iat_recognize");
                 // 清空显示内容
                 mResultText.setText(null);
+                //此处用MVP模式封装了显示Dialog的听写功能，不显示的Dialog的功能暂未封装。
+                speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
                 //清空听写结果
-                mIatResultsMap.clear();
-                boolean isShowDialog = mSharedPreferences.getBoolean(getString(R.string.pref_key_iat_show), true);
                 /*
                 * 听写对象封装要求：
                 * 1.此处录音因为有可选的视图动画录音和非视图录音，因此可以在设置中点选是否显示视图录音。
@@ -140,106 +135,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                 * 5、广播
                 * 6、服务
                 * */
-                if (isShowDialog) {
-                    // 显示听写对话框
-                    mIatDialog.setListener(new RecognizerDialogListener() {
-                        @Override
-                        public void onResult(RecognizerResult recognizerResult, boolean b) {
-                            //解析json
-                            String info = JsonParser.parseIatResult(recognizerResult, mIatResultsMap);
-                            mResultText.setText(info);
-                            mResultText.setSelection(info.length());
-                            //调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
-                            if (info.contains("发送微信")) {
-                                mResultText.setText("好的，请入录您想说的话！");
-                                speechSynthesis();
-                                // speechSynthesis();
-                            } else if (info.contains("你好")) {
-//                                mResultText.setText("我听不懂你说的话！");
-//                                speechSynthesis();
-                                assistantService.transInfo = info;
-                                Intent intent = new Intent(Intent.ACTION_MAIN);
-                                ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
-                                intent.addCategory(Intent.CATEGORY_LAUNCHER);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                intent.setComponent(cmp);
-                                startActivity(intent);
-                            }
-                        }
 
-                        @Override
-                        public void onError(SpeechError error) {
-                            if (mTranslateEnable && error.getErrorCode() == 14002) {
-                                show(error.getPlainDescription(true) + "\n请确认是否已开通翻译功能");
-                            } else {
-                                show(error.getPlainDescription(true));
-                            }
-                        }
-                    });
-                    mIatDialog.show();
-                    show(getString(R.string.text_begin));
-                } else {
-                    // 不显示听写对话框
-                    int ret = mIat.startListening(new RecognizerListener() {
-                        @Override
-                        public void onVolumeChanged(int i, byte[] bytes) {
-                            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
-                            // 若使用本地能力，会话id为null
-                            //	if (SpeechEvent.EVENT_SESSION_ID == eventType) {
-                            //		String sid = obj.getString(SpeechEvent.KEY_EVENT_SESSION_ID);
-                            //		Log.d(TAG, "session id =" + sid);
-                            //	}
-                        }
-
-                        @Override
-                        public void onBeginOfSpeech() {
-                            // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
-                            show("开始说话");
-                        }
-
-
-                        @Override
-                        public void onEndOfSpeech() {
-                            // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
-                            show("结束说话");
-                        }
-
-                        @Override
-                        public void onResult(RecognizerResult results, boolean b) {
-                            Log.d(TAG, results.getResultString());
-                            String info = JsonParser.parseIatResult(results, mIatResultsMap);
-                            mResultText.setText(info);
-                            mResultText.setSelection(info.length());
-                        }
-
-                        @Override
-                        public void onError(SpeechError error) {
-                            // Tips：
-                            // 错误码：10118(您没有说话)，可能是录音机权限被禁，需要提示用户打开应用的录音权限。
-                            // 如果使用本地功能（语记）需要提示用户开启语记的录音权限。
-                            if (mTranslateEnable && error.getErrorCode() == 14002) {
-                                show(error.getPlainDescription(true) + "\n请确认是否已开通翻译功能");
-                            } else {
-                                show(error.getPlainDescription(true));
-                            }
-                        }
-
-                        @Override
-                        public void onEvent(int i, int i1, int i2, Bundle bundle) {
-                            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
-                            // 若使用本地能力，会话id为null
-                            //	if (SpeechEvent.EVENT_SESSION_ID == eventType) {
-                            //		String sid = obj.getString(SpeechEvent.KEY_EVENT_SESSION_ID);
-                            //		Log.d(TAG, "session id =" + sid);
-                            //	}
-                        }
-                    });
-                    if (ret != ErrorCode.SUCCESS) {
-                        show("听写失败,错误码：" + ret);
-                    } else {
-                        show(getString(R.string.text_begin));
-                    }
-                }
                 break;
             case R.id.autosendmsg_stop:
                 show("停止听写");
@@ -262,7 +158,11 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                  * 3.尽量封装，不将任何繁杂和复杂逻辑暴露在外，使用封装基类，接口等方式。
                  * 4.能够与听写对象使用挈合流程不冲突。
                  */
-                speechSynthesis();
+               // speechSynthesis();
+              int code=speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+                if (code != ErrorCode.SUCCESS) {
+                    show("语音合成失败,错误码: " + code);
+                }
                 break;
             case R.id.speechSynthesis_cancle:
                 mTts.stopSpeaking();
@@ -276,14 +176,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         }
     }
 
-    private void speechSynthesis() {
-        // 移动数据分析，收集开始合成事件
-        FlowerCollector.onEvent(this, "tts_play");
-        int code = mTts.startSpeaking(mResultText.getText().toString(), mTtsListener);
-        if (code != ErrorCode.SUCCESS) {
-            show("语音合成失败,错误码: " + code);
-        }
-    }
+
 
     //语音合成发音人选择
     private int selectedNum = 0;
@@ -304,63 +197,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                         }).show();
     }
 
-    /**
-     * 合成回调监听。
-     */
-    private SynthesizerListener mTtsListener = new SynthesizerListener() {
 
-        @Override
-        public void onSpeakBegin() {
-            show("开始播放");
-        }
-
-        @Override
-        public void onSpeakPaused() {
-            show("暂停播放");
-        }
-
-        @Override
-        public void onSpeakResumed() {
-            show("继续播放");
-        }
-
-        @Override
-        public void onBufferProgress(int percent, int beginPos, int endPos,
-                                     String info) {
-         //   合成进度
-            mPercentForBuffering = percent;
-            show(String.format(getString(R.string.tts_toast_format),
-                    mPercentForBuffering, mPercentForPlaying));
-        }
-
-        @Override
-        public void onSpeakProgress(int percent, int beginPos, int endPos) {
-            // 播放进度
-            mPercentForPlaying = percent;
-            show(String.format(getString(R.string.tts_toast_format),
-                    mPercentForBuffering, mPercentForPlaying));
-        }
-
-        @Override
-        public void onCompleted(SpeechError error) {
-            if (error == null) {
-                show("播放完成");
-                mIatDialog.show();
-            } else if (error != null) {
-                show(error.getPlainDescription(true));
-            }
-        }
-
-        @Override
-        public void onEvent(int eventType, int arg1, int arg2, Bundle obj) {
-            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
-            // 若使用本地能力，会话id为null
-            //	if (SpeechEvent.EVENT_SESSION_ID == eventType) {
-            //		String sid = obj.getString(SpeechEvent.KEY_EVENT_SESSION_ID);
-            //		Log.d(TAG, "session id =" + sid);
-            //	}
-        }
-    };
 
 
     private void show(String str) {
@@ -392,5 +229,48 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         FlowerCollector.onPageEnd(TAG);
         FlowerCollector.onPause(this);
         super.onPause();
+    }
+
+    //语音听写
+    @Override
+    public  void onSpeechRecognizerResult(String resultInfo) {
+        mIatDialog.dismiss();
+        mResultText.setText(resultInfo);
+        mResultText.setSelection(resultInfo.length());
+       // 调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
+        if (resultInfo.contains("发送微信")) {
+            mResultText.setText("好的，请入录您想说的话！");
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+        } else if (resultInfo.contains("你好")) {
+            assistantService.transInfo = resultInfo;
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.setComponent(cmp);
+            startActivity(intent);
+        }
+    }
+
+    @Override
+    public void onSpeechRecognizerError(SpeechError error) {
+
+    }
+
+
+//语音合成
+    @Override
+    public void onSpeechSynthesizerProgress(int onBufferProgress, int onSpeakProgress) {
+        show(String.format(getString(R.string.tts_toast_format), onBufferProgress, onSpeakProgress));
+    }
+
+    @Override
+    public void onSpeechSynthesizerCompleted(SpeechError error) {
+        speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
+        if (error == null) {
+            show("播放完成");
+        } else if (error != null) {
+            show(error.getPlainDescription(true));
+        }
     }
 }

@@ -65,7 +65,7 @@ public class assistantService extends AccessibilityService  {
                     //进入聊天窗口，点击最后一个红包
                     Log.e("demo", "点击红包"+transInfo);
                     //找到特定的联系人，然后发送打招呼
-                    contactsName=transInfo.substring(0,transInfo.length()-3);
+                    contactsName=transInfo.substring(0,transInfo.length()-2);
                     Log.e("demo", "指定联系人："+contactsName);
                     inputClick1("com.tencent.mm:id/ak1");
                 } else if (className.equals("com.tencent.mm.plugin.luckymoney.ui.En_fba4b94f")) {
