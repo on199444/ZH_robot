@@ -21,6 +21,7 @@ import com.iflytek.cloud.ui.RecognizerDialog;
 import com.iflytek.sunflower.FlowerCollector;
 import zh_wxassistant.com.Iflytek.IflytekHelper;
 import zh_wxassistant.com.R;
+import zh_wxassistant.com.app.ZhWxAssistantApplication;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechRecognizerPresenter;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechSynthesizerPresenter;
 import zh_wxassistant.com.mvp.view.Iflytek.SpeechRecognizerListener;
@@ -45,7 +46,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     private SharedPreferences mSharedPreferences;
     //转换器可见否
     private boolean mTranslateEnable = false;
-
+    private  static assistantMsg assistantMsg;
 
     //语音合成
     // 语音合成对象
@@ -57,9 +58,12 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     //
     private String[] mCloudVoicersValue;
 
-    //mvp模式
+    //封装科大讯飞语音听写合成功能mvp模式
     public SpeechRecognizerPresenter speechRecognizerPresenter;
     public SpeechSynthesizerPresenter speechSynthesizerPresenter;
+
+    //Activity和AccessibilityService之间的数据传递
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -83,6 +87,10 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         // 云端发音人名称列表
         mCloudVoicersEntries = getResources().getStringArray(R.array.voicer_cloud_entries);
         mCloudVoicersValue = getResources().getStringArray(R.array.voicer_cloud_values);
+    }
+
+    public static void setInerface(assistantMsg inerface){
+        assistantMsg=inerface;
     }
 
     private void initViewAndEvent() {
@@ -119,6 +127,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                 mResultText.setText(null);
                 //此处用MVP模式封装了显示Dialog的听写功能，不显示的Dialog的功能暂未封装。
                 speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
+
                 //清空听写结果
                 /*
                 * 听写对象封装要求：
@@ -242,13 +251,14 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
             mResultText.setText("好的，请入录您想说的话！");
             speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
         } else if (resultInfo.contains("你好")) {
-            assistantService.transInfo = resultInfo;
             Intent intent = new Intent(Intent.ACTION_MAIN);
             ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
             intent.addCategory(Intent.CATEGORY_LAUNCHER);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.setComponent(cmp);
             startActivity(intent);
+            assistantMsg.text("ldh");
+            assistantMsg.number(888888888);
         }
     }
 
@@ -272,5 +282,10 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         } else if (error != null) {
             show(error.getPlainDescription(true));
         }
+    }
+
+    public interface assistantMsg{
+        public void  number(int num);
+        public void  text(String text);
     }
 }

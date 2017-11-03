@@ -12,6 +12,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.RequiresApi;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -26,21 +28,39 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import zh_wxassistant.com.activity.AutoSendMsgActivity;
+import zh_wxassistant.com.app.ZhWxAssistantApplication;
+
 /**
  * Created by Fzj on 2017/10/26.
  */
 
-public class assistantService extends AccessibilityService  {
+public class assistantService extends AccessibilityService implements AutoSendMsgActivity.assistantMsg {
     public static  String transInfo=" ";
     private String contactsName=" ";
     //用于存储开红包的集合对象
     private List<AccessibilityNodeInfo> parents;
     private HashMap<AccessibilityNodeInfo,Boolean> hashMapParents=new HashMap<>();
+
+    //消息传递机制
+
     /**
      * 当启动服务的时候就会被调用
      */
     @Override
     protected void onServiceConnected() {
+        try {
+            /*这里使用反射静态时刻加载类，静态类静态变量会在编译时刻加载。利用此特性结合接口回调
+              等同于当前的service类与activity事先签订好了回调协约
+              注意点：区分编译与运行
+              编译时刻加载类是静态加载类，运行时刻加载类是动态加载类
+             */
+            Class c= Class.forName("zh_wxassistant.com.activity.AutoSendMsgActivity");
+                AutoSendMsgActivity c1=(AutoSendMsgActivity)c.newInstance();
+                c1.setInerface(assistantService.this);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         super.onServiceConnected();
         parents = new ArrayList<>();
     }
@@ -238,5 +258,19 @@ public class assistantService extends AccessibilityService  {
     @Override
     public void onInterrupt() {
        Log.w("dome","改变一点东西奥术大师多！");
+    }
+
+    private int mNum;
+    private String mString;
+    @Override
+    public void number(int num) {
+        this.mNum=num;
+        Log.e("demo","从activity传过来的数值类型："+mNum);
+    }
+
+    @Override
+    public void text(String text) {
+        this.mString=text;
+        Log.e("demo","从activity传过来的字符串类型："+mString);
     }
 }
