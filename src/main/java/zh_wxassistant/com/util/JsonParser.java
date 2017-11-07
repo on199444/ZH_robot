@@ -1,8 +1,5 @@
 package zh_wxassistant.com.util;
 
-import android.content.ComponentName;
-import android.content.Intent;
-
 import com.iflytek.cloud.RecognizerResult;
 
 import org.json.JSONArray;
@@ -11,8 +8,6 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import java.util.HashMap;
-
-import zh_wxassistant.com.service.assistantService;
 
 /**
  * Json结果解析类
@@ -54,7 +49,7 @@ public class JsonParser {
 		for (String key : mIatResults.keySet()) {
 			resultBuffer.append(mIatResults.get(key));
 		}
-//		assistantService.transInfo=resultBuffer.toString();
+//		AssistantService.transInfo=resultBuffer.toString();
 //		Intent intent = new Intent(Intent.ACTION_MAIN);
 //		ComponentName cmp = new ComponentName("com.tencent.mm","com.tencent.mm.ui.LauncherUI");
 //		intent.addCategory(Intent.CATEGORY_LAUNCHER);

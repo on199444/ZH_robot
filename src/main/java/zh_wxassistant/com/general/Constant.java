@@ -6,4 +6,5 @@ package zh_wxassistant.com.general;
 
 public class Constant {
     public static final String PREFER_NAME = "com.iflytek.setting";
+    public static final String PackAgeName="zh_wxassistant.com";
 }

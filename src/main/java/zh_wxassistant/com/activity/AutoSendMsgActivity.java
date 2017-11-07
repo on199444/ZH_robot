@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.EditText;
@@ -21,19 +22,21 @@ import com.iflytek.cloud.ui.RecognizerDialog;
 import com.iflytek.sunflower.FlowerCollector;
 import zh_wxassistant.com.Iflytek.IflytekHelper;
 import zh_wxassistant.com.R;
-import zh_wxassistant.com.app.ZhWxAssistantApplication;
+import zh_wxassistant.com.communication.AssistantToWx;
+import zh_wxassistant.com.communication.WxToAssistant;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechRecognizerPresenter;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechSynthesizerPresenter;
 import zh_wxassistant.com.mvp.view.Iflytek.SpeechRecognizerListener;
 import zh_wxassistant.com.mvp.view.Iflytek.SpeechSynthesizerListener;
-import zh_wxassistant.com.service.assistantService;
+import zh_wxassistant.com.service.AssistantService;
+
 import static zh_wxassistant.com.general.Constant.PREFER_NAME;
 
 /**
  * Created by Fzj on 2017/10/26.
  */
 
-public class AutoSendMsgActivity extends Activity implements View.OnClickListener,SpeechRecognizerListener,SpeechSynthesizerListener {
+public  class AutoSendMsgActivity extends Activity implements View.OnClickListener,SpeechRecognizerListener,SpeechSynthesizerListener,AssistantToWx {
     //语音听写
     private static String TAG = AutoSendMsgActivity.class.getSimpleName();
     // 语音听写对象
@@ -46,7 +49,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     private SharedPreferences mSharedPreferences;
     //转换器可见否
     private boolean mTranslateEnable = false;
-    private  static assistantMsg assistantMsg;
+    ;
 
     //语音合成
     // 语音合成对象
@@ -65,17 +68,24 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     //Activity和AccessibilityService之间的数据传递
 
 
+    //
+    private String stringValue=null;
+    private static WxToAssistant wxToAssistant;
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.activity_autosendmsg);
+//        AssistantService.setAssistantToWxInerface(this);
+
+         Intent intent=getIntent();
+         stringValue=intent.getStringExtra("WxMsg");
+
         speechRecognizerPresenter=new SpeechRecognizerPresenter(this);
         speechSynthesizerPresenter=new SpeechSynthesizerPresenter(this);
         initViewAndEvent();
         mSharedPreferences = getSharedPreferences(PREFER_NAME, Activity.MODE_PRIVATE);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
-
         //语音听写的SpeechRecognizer
         mIat = new IflytekHelper(this).getVoiceWriteRecognizerIat();
         // 初始化听写Dialog，如果只使用有UI听写功能，无需创建SpeechRecognizer
@@ -87,11 +97,20 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         // 云端发音人名称列表
         mCloudVoicersEntries = getResources().getStringArray(R.array.voicer_cloud_entries);
         mCloudVoicersValue = getResources().getStringArray(R.array.voicer_cloud_values);
+
+        if (null!=stringValue){
+            mResultText.setText(stringValue);
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+        }else{
+            show("没有");
+        }
     }
 
-    public static void setInerface(assistantMsg inerface){
-        assistantMsg=inerface;
+    public static void setWxToAssistantInerface(WxToAssistant inerface){
+        wxToAssistant=inerface;
     }
+
+
 
     private void initViewAndEvent() {
         //录音听写
@@ -185,8 +204,6 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         }
     }
 
-
-
     //语音合成发音人选择
     private int selectedNum = 0;
     private void showPresonSelectDialog() {
@@ -205,9 +222,6 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
                             }
                         }).show();
     }
-
-
-
 
     private void show(String str) {
         mToast.setText(str);
@@ -237,6 +251,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         //移动数据统计分析
         FlowerCollector.onPageEnd(TAG);
         FlowerCollector.onPause(this);
+//        onDestroy();
         super.onPause();
     }
 
@@ -257,8 +272,8 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.setComponent(cmp);
             startActivity(intent);
-            assistantMsg.text("ldh");
-            assistantMsg.number(888888888);
+            wxToAssistant.name(resultInfo.substring(0,2));
+            wxToAssistant.msgContent(resultInfo);
         }
     }
 
@@ -284,8 +299,14 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         }
     }
 
-    public interface assistantMsg{
-        public void  number(int num);
-        public void  text(String text);
+
+    @Override
+    public void AtoWMsg(String text) {
+        Log.e("demo", "有新消息："+text);
+            mResultText.setText(text);
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+
     }
+
+
 }
