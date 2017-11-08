@@ -2,9 +2,12 @@ package zh_wxassistant.com.activity;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -22,21 +25,18 @@ import com.iflytek.cloud.ui.RecognizerDialog;
 import com.iflytek.sunflower.FlowerCollector;
 import zh_wxassistant.com.Iflytek.IflytekHelper;
 import zh_wxassistant.com.R;
-import zh_wxassistant.com.communication.AssistantToWx;
 import zh_wxassistant.com.communication.WxToAssistant;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechRecognizerPresenter;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechSynthesizerPresenter;
 import zh_wxassistant.com.mvp.view.Iflytek.SpeechRecognizerListener;
 import zh_wxassistant.com.mvp.view.Iflytek.SpeechSynthesizerListener;
-import zh_wxassistant.com.service.AssistantService;
-
 import static zh_wxassistant.com.general.Constant.PREFER_NAME;
 
 /**
  * Created by Fzj on 2017/10/26.
  */
 
-public  class AutoSendMsgActivity extends Activity implements View.OnClickListener,SpeechRecognizerListener,SpeechSynthesizerListener,AssistantToWx {
+public class AutoSendMsgActivity extends Activity implements View.OnClickListener, SpeechRecognizerListener, SpeechSynthesizerListener{
     //语音听写
     private static String TAG = AutoSendMsgActivity.class.getSimpleName();
     // 语音听写对象
@@ -69,21 +69,25 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
 
     //
-    private String stringValue=null;
+    private String stringValue = null;
     private static WxToAssistant wxToAssistant;
+
+    MyBroadcastReceiver myBroadcastReceiver;
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        Log.e("demo","onCreate");
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.activity_autosendmsg);
-//        AssistantService.setAssistantToWxInerface(this);
-
-         Intent intent=getIntent();
-         stringValue=intent.getStringExtra("WxMsg");
-
-        speechRecognizerPresenter=new SpeechRecognizerPresenter(this);
-        speechSynthesizerPresenter=new SpeechSynthesizerPresenter(this);
         initViewAndEvent();
+         /*动态方式注册广播接收者*/
+        myBroadcastReceiver = new MyBroadcastReceiver();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("myBroadcastReceiver");
+        this.registerReceiver(myBroadcastReceiver, filter);
+        speechRecognizerPresenter = new SpeechRecognizerPresenter(this);
+        speechSynthesizerPresenter = new SpeechSynthesizerPresenter(this);
         mSharedPreferences = getSharedPreferences(PREFER_NAME, Activity.MODE_PRIVATE);
         mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
         //语音听写的SpeechRecognizer
@@ -98,18 +102,17 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
         mCloudVoicersEntries = getResources().getStringArray(R.array.voicer_cloud_entries);
         mCloudVoicersValue = getResources().getStringArray(R.array.voicer_cloud_values);
 
-        if (null!=stringValue){
-            mResultText.setText(stringValue);
-            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
-        }else{
-            show("没有");
-        }
+//        if (null!=stringValue){
+//            mResultText.setText(stringValue);
+//            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+//        }else{
+//            show("没有");
+//        }
     }
 
-    public static void setWxToAssistantInerface(WxToAssistant inerface){
-        wxToAssistant=inerface;
+    public static void setWxToAssistantInerface(WxToAssistant inerface) {
+        wxToAssistant = inerface;
     }
-
 
 
     private void initViewAndEvent() {
@@ -143,7 +146,7 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
                 // 移动数据分析，收集开始听写事件
                 FlowerCollector.onEvent(AutoSendMsgActivity.this, "iat_recognize");
                 // 清空显示内容
-                mResultText.setText(null);
+                mResultText.setText(" ");
                 //此处用MVP模式封装了显示Dialog的听写功能，不显示的Dialog的功能暂未封装。
                 speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
 
@@ -186,8 +189,8 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
                  * 3.尽量封装，不将任何繁杂和复杂逻辑暴露在外，使用封装基类，接口等方式。
                  * 4.能够与听写对象使用挈合流程不冲突。
                  */
-               // speechSynthesis();
-              int code=speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+                // speechSynthesis();
+                int code = speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, mResultText.getText().toString());
                 if (code != ErrorCode.SUCCESS) {
                     show("语音合成失败,错误码: " + code);
                 }
@@ -206,21 +209,22 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
     //语音合成发音人选择
     private int selectedNum = 0;
+
     private void showPresonSelectDialog() {
         new AlertDialog.Builder(this).setTitle("在线合成发音人选项")
                 .setSingleChoiceItems(mCloudVoicersEntries, selectedNum, new DialogInterface.OnClickListener() { // 点击单选框后的处理
-                            public void onClick(DialogInterface dialog, int which) { // 点击了哪一项
-                                voicer = mCloudVoicersValue[which];
-                                mTts.setParameter(SpeechConstant.VOICE_NAME, voicer);
-                                if ("catherine".equals(voicer) || "henry".equals(voicer) || "vimary".equals(voicer)) {
-                                    ((EditText) findViewById(R.id.autosendmsg_Text)).setText(R.string.text_tts_source_en);
-                                } else {
-                                    ((EditText) findViewById(R.id.autosendmsg_Text)).setText(R.string.text_tts_source);
-                                }
-                                selectedNum = which;
-                                dialog.dismiss();
-                            }
-                        }).show();
+                    public void onClick(DialogInterface dialog, int which) { // 点击了哪一项
+                        voicer = mCloudVoicersValue[which];
+                        mTts.setParameter(SpeechConstant.VOICE_NAME, voicer);
+                        if ("catherine".equals(voicer) || "henry".equals(voicer) || "vimary".equals(voicer)) {
+                            ((EditText) findViewById(R.id.autosendmsg_Text)).setText(R.string.text_tts_source_en);
+                        } else {
+                            ((EditText) findViewById(R.id.autosendmsg_Text)).setText(R.string.text_tts_source);
+                        }
+                        selectedNum = which;
+                        dialog.dismiss();
+                    }
+                }).show();
     }
 
     private void show(String str) {
@@ -240,6 +244,7 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
     @Override
     protected void onResume() {
+        Log.e("demo","onResume");
         //移动数据统计分析
         FlowerCollector.onResume(this);
         FlowerCollector.onPageStart(TAG);
@@ -248,6 +253,7 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
     @Override
     protected void onPause() {
+        Log.e("demo","onPause");
         //移动数据统计分析
         FlowerCollector.onPageEnd(TAG);
         FlowerCollector.onPause(this);
@@ -257,14 +263,14 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
     //语音听写
     @Override
-    public  void onSpeechRecognizerResult(String resultInfo) {
+    public void onSpeechRecognizerResult(String resultInfo) {
         mIatDialog.dismiss();
         mResultText.setText(resultInfo);
         mResultText.setSelection(resultInfo.length());
-       // 调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
+        // 调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
         if (resultInfo.contains("发送微信")) {
             mResultText.setText("好的，请入录您想说的话！");
-            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, mResultText.getText().toString());
         } else if (resultInfo.contains("你好")) {
             Intent intent = new Intent(Intent.ACTION_MAIN);
             ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
@@ -272,7 +278,7 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.setComponent(cmp);
             startActivity(intent);
-            wxToAssistant.name(resultInfo.substring(0,2));
+            wxToAssistant.name(resultInfo.substring(0, 2));
             wxToAssistant.msgContent(resultInfo);
         }
     }
@@ -282,8 +288,7 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
 
     }
 
-
-//语音合成
+    //语音合成
     @Override
     public void onSpeechSynthesizerProgress(int onBufferProgress, int onSpeakProgress) {
         show(String.format(getString(R.string.tts_toast_format), onBufferProgress, onSpeakProgress));
@@ -299,14 +304,12 @@ public  class AutoSendMsgActivity extends Activity implements View.OnClickListen
         }
     }
 
-
-    @Override
-    public void AtoWMsg(String text) {
-        Log.e("demo", "有新消息："+text);
-            mResultText.setText(text);
-            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
-
+    public  class MyBroadcastReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.e("Receiver", "这是静态的广播接受者（优先级500）---》" + intent.getStringExtra("msg"));
+            mResultText.setText(intent.getStringExtra("msg"));
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, mResultText.getText().toString());
+        }
     }
-
-
 }

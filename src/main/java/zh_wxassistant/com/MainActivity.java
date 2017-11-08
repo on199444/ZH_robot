@@ -16,7 +16,6 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import zh_wxassistant.com.activity.AutoSendMsgActivity;
-import zh_wxassistant.com.communication.AssistantToWx;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener{
 
