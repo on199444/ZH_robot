@@ -11,7 +11,6 @@ import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.nfc.Tag;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
@@ -30,8 +29,6 @@ import java.util.TimerTask;
 import zh_wxassistant.com.activity.AutoSendMsgActivity;
 import zh_wxassistant.com.app.ZhWxAssistantApplication;
 import zh_wxassistant.com.communication.WxToAssistant;
-import zh_wxassistant.com.general.Constant;
-
 /**
  * Created by Fzj on 2017/10/26.
  */
@@ -83,20 +80,13 @@ public class AssistantService extends AccessibilityService implements WxToAssist
                         final String content = text.toString();
                         if (content.contains("[微信红包]")) {
                             //模拟打开通知栏消息，即打开微信
-                            if (event.getParcelableData() != null && event.getParcelableData() instanceof Notification) {
-                                Notification notification = (Notification) event.getParcelableData();
-                                PendingIntent pendingIntent = notification.contentIntent;
-                                try {
-                                    pendingIntent.send();
-                                    Log.e("demo", "进入微信");
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                            }
+                            openWx(event);
                         } else if (content.contains("[图片]")) {
-                            Log.e(TAG,"图片GG");
+                            Log.e(TAG,"图片GGa_5");
+                            openWx(event);
                         } else if (content.contains("[语音]")) {
-                            Log.e(TAG,"语音GG");
+                            Log.e(TAG,"语音GGaao");
+                            openWx(event);
                         } else {
                             //文本消息
                                 Intent mWxIntent = new Intent(ZhWxAssistantApplication.getContextObject(), AutoSendMsgActivity.class);
@@ -122,14 +112,19 @@ public class AssistantService extends AccessibilityService implements WxToAssist
             case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED:
                 Log.e("demo", "窗口事件改变");
                 if (className.equals("com.tencent.mm.ui.LauncherUI")) {
-                    //进入聊天窗口，点击最后一个红包
+
                     Log.e("demo", "点击红包");
                     //找到特定的联系人，然后发送打招呼
                     if (mName != null && mTextContent != null) {
                         Log.e("demo", "指定联系人：" + mName);
                         autoSendMsg("com.tencent.mm:id/ak1");
                     }
-                    getLastPacket();
+                    //进入聊天窗口，点击最后一个红包
+//                    getLastPacket();
+                    //去点击最后一张图片
+//                    quitPacket("com.tencent.mm:id/a_5");
+                    //去点击最后一个语音
+                    quitPacket("com.tencent.mm:id/aao");
                 } else if (className.equals("com.tencent.mm.plugin.luckymoney.ui.En_fba4b94f")) {
                     //开红包窗口
                     Log.e("demo", "开红包");
@@ -138,8 +133,23 @@ public class AssistantService extends AccessibilityService implements WxToAssist
                     //红包详情窗口退出红包
                     Log.e("demo", "退出红包");
                     quitPacket("com.tencent.mm:id/hg");
+                }else if (className.equals("com.tencent.mm.plugin.sns.ui.En_424b8e16")){
+                    Log.e(TAG,"到朋友圈了");
                 }
                 break;
+        }
+    }
+
+    private void openWx(AccessibilityEvent event) {
+        if (event.getParcelableData() != null && event.getParcelableData() instanceof Notification) {
+            Notification notification = (Notification) event.getParcelableData();
+            PendingIntent pendingIntent = notification.contentIntent;
+            try {
+                pendingIntent.send();
+                Log.e("demo", "进入微信");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -254,6 +264,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         }
     }
 
+
     /**
      * 通过ID获取控件，并进行模拟点击
      *
@@ -272,7 +283,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
     private void quitPacket(String clickId) {
-        pressBackButton();
+//        pressBackButton();
         AccessibilityNodeInfo nodeInfo = getRootInActiveWindow();
         if (nodeInfo != null) {
             List<AccessibilityNodeInfo> list = nodeInfo.findAccessibilityNodeInfosByViewId(clickId);
@@ -286,7 +297,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
                     }
                     parent = parent.getParent();
                 }
-
             }
         }
     }
@@ -361,7 +371,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
             pressBackButton();
         }
     }
-
     /*
    * @param rootNode 传入的聊天根视图树
    * @param content  回复的文本内容
@@ -433,7 +442,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         home.addCategory(Intent.CATEGORY_HOME);
         startActivity(home);
     }
-
     /**
      * 模拟back按键
      */

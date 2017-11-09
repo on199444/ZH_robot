@@ -280,7 +280,16 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
             startActivity(intent);
             wxToAssistant.name(resultInfo.substring(0, 2));
             wxToAssistant.msgContent(resultInfo);
+        }else if (resultInfo.contains("点赞")){
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.plugin.setting.ui.setting.SettingsPersonalInfoUI");
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.setComponent(cmp);
+            startActivity(intent);
         }
+
+
     }
 
     @Override

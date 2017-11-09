@@ -38,10 +38,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <activity
-            android:name=".activity.AutoSendMsgActivity"
-            android:launchMode="singleTask"
-            ></activity>
+            android:name=".activity.AutoSendMsgActivity">
+        </activity>
 
         <!-- 移动统计分析 -->
         <meta-data
