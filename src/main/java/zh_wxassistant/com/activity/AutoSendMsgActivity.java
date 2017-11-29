@@ -1,30 +1,52 @@
 package zh_wxassistant.com.activity;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.Nullable;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 import com.iflytek.cloud.ErrorCode;
 import com.iflytek.cloud.SpeechConstant;
 import com.iflytek.cloud.SpeechError;
 import com.iflytek.cloud.SpeechRecognizer;
 import com.iflytek.cloud.SpeechSynthesizer;
+import com.iflytek.cloud.resource.Resource;
 import com.iflytek.cloud.ui.RecognizerDialog;
 import com.iflytek.sunflower.FlowerCollector;
+import com.jph.takephoto.app.TakePhoto;
+import com.jph.takephoto.app.TakePhotoActivity;
+import com.jph.takephoto.model.TResult;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import zh_wxassistant.com.Iflytek.IflytekHelper;
 import zh_wxassistant.com.R;
+import zh_wxassistant.com.base.MyProvider;
 import zh_wxassistant.com.communication.WxToAssistant;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechRecognizerPresenter;
 import zh_wxassistant.com.mvp.presenter.Iflytek.SpeechSynthesizerPresenter;
@@ -36,7 +58,7 @@ import static zh_wxassistant.com.general.Constant.PREFER_NAME;
  * Created by Fzj on 2017/10/26.
  */
 
-public class AutoSendMsgActivity extends Activity implements View.OnClickListener, SpeechRecognizerListener, SpeechSynthesizerListener{
+public class AutoSendMsgActivity extends TakePhotoActivity implements View.OnClickListener, SpeechRecognizerListener, SpeechSynthesizerListener{
     //语音听写
     private static String TAG = AutoSendMsgActivity.class.getSimpleName();
     // 语音听写对象
@@ -44,12 +66,13 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     // 语音听写UI
     private RecognizerDialog mIatDialog;
     private EditText mResultText;
+    private ImageView mImg;
     private Toast mToast;
     //使用轻量级数据保存机制SharedPreferences记录用户操作状态
     private SharedPreferences mSharedPreferences;
     //转换器可见否
     private boolean mTranslateEnable = false;
-    ;
+
 
     //语音合成
     // 语音合成对象
@@ -66,14 +89,10 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     public SpeechSynthesizerPresenter speechSynthesizerPresenter;
 
     //Activity和AccessibilityService之间的数据传递
-
-
-    //
     private String stringValue = null;
     private static WxToAssistant wxToAssistant;
-
-    MyBroadcastReceiver myBroadcastReceiver;
-
+    private MyBroadcastReceiver myBroadcastReceiver;
+    private Boolean isBroadcastMsg;
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         Log.e("demo","onCreate");
@@ -86,6 +105,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         IntentFilter filter = new IntentFilter();
         filter.addAction("myBroadcastReceiver");
         this.registerReceiver(myBroadcastReceiver, filter);
+        isBroadcastMsg=false;
         speechRecognizerPresenter = new SpeechRecognizerPresenter(this);
         speechSynthesizerPresenter = new SpeechSynthesizerPresenter(this);
         mSharedPreferences = getSharedPreferences(PREFER_NAME, Activity.MODE_PRIVATE);
@@ -101,19 +121,11 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         // 云端发音人名称列表
         mCloudVoicersEntries = getResources().getStringArray(R.array.voicer_cloud_entries);
         mCloudVoicersValue = getResources().getStringArray(R.array.voicer_cloud_values);
-
-//        if (null!=stringValue){
-//            mResultText.setText(stringValue);
-//            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts,mResultText.getText().toString());
-//        }else{
-//            show("没有");
-//        }
     }
 
     public static void setWxToAssistantInerface(WxToAssistant inerface) {
         wxToAssistant = inerface;
     }
-
 
     private void initViewAndEvent() {
         //录音听写
@@ -122,6 +134,7 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         findViewById(R.id.autosendmsg_begain).setOnClickListener(this);
         findViewById(R.id.autosendmsg_stop).setOnClickListener(this);
         findViewById(R.id.autosendmsg_cancle).setOnClickListener(this);
+        mImg=findViewById(R.id.myImg);
 
         //语音合成
         findViewById(R.id.speechSynthesis_person_select).setOnClickListener(this);
@@ -261,16 +274,19 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
         super.onPause();
     }
 
-    //语音听写
+    //语音听写完毕
     @Override
     public void onSpeechRecognizerResult(String resultInfo) {
         mIatDialog.dismiss();
         mResultText.setText(resultInfo);
         mResultText.setSelection(resultInfo.length());
-        // 调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
+        /*
+        * 调用语音合成框架读取内容，判断用户指令，提取关键字执行相应的操作
+        * 此处
+        */
+
         if (resultInfo.contains("发送微信")) {
-            mResultText.setText("好的，请入录您想说的话！");
-            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, mResultText.getText().toString());
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, "好的，请说出您想说的话！");
         } else if (resultInfo.contains("你好")) {
             Intent intent = new Intent(Intent.ACTION_MAIN);
             ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
@@ -278,8 +294,8 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.setComponent(cmp);
             startActivity(intent);
-            wxToAssistant.name(resultInfo.substring(0, 2));
-            wxToAssistant.msgContent(resultInfo);
+            //回调到AccessibilityService
+            wxToAssistant.appointMsgToContacts(resultInfo);
         }else if (resultInfo.contains("点赞")){
             Intent intent = new Intent(Intent.ACTION_MAIN);
             ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.plugin.setting.ui.setting.SettingsPersonalInfoUI");
@@ -287,9 +303,79 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.setComponent(cmp);
             startActivity(intent);
+        }else if(resultInfo.contains("发朋友圈")){
+            TakePhoto takePhoto= getTakePhoto();
+            takePhoto.onPickMultiple(5);
+        }else if (hasTask){
+            shareImage(mResultText.getText().toString(),mTResult);
         }
+    }
 
+    //TakePhoto框架
+    @Override
+    public void takeCancel() {
+        super.takeCancel();
+    }
 
+    @Override
+    public void takeFail(TResult result, String msg) {
+        super.takeFail(result, msg);
+    }
+
+    private Boolean hasTask=false;
+    private TResult mTResult=null;
+    @Override
+    public void takeSuccess(TResult result) {
+        super.takeSuccess(result);
+        mTResult=result;
+        hasTask= result.getImages().size()>0?true:false;
+        if (mTResult!=null&&hasTask){
+            speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, "好的，请说出您想说的话！");
+        }
+    }
+
+    public void click(View view) throws Exception{
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        ComponentName cmp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.LauncherUI");
+        intent.addCategory(Intent.CATEGORY_LAUNCHER);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setComponent(cmp);
+        startActivity(intent);
+        //回调到AccessibilityService
+        wxToAssistant.appointMsgToContacts(mResultText.getText().toString());
+    }
+
+    private void shareImage(String kdescription, TResult result) {
+        ArrayList<Uri> imageUris = new ArrayList<>();
+        File file = null;
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setAction(Intent.ACTION_SEND);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setAction(Intent.ACTION_SEND_MULTIPLE);
+        ComponentName comp = new ComponentName("com.tencent.mm", "com.tencent.mm.ui.tools.ShareToTimeLineUI");
+        intent.setComponent(comp);
+        Log.w("SDIMG","现在的版本"+Build.VERSION.SDK_INT);
+        //此处为适配7.0做准备,目前不能使用，使用FileProvider获取Uri虽然有效但是并不能用Intent直接传递到微信
+        if (false){
+            // 适配android7.0 ，不能直接访问原路径,需要对intent 授权
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.setDataAndType( MyProvider.getUriForFile(this,"fileprovider",new File(result.getImages().get(0).getOriginalPath())),"image/*");
+            for (int i = 0; i < result.getImages().size(); i++) {
+                file = new File(result.getImages().get(i).getOriginalPath());
+                imageUris.add(MyProvider.getUriForFile(this,"ZH_fileprovider",file));
+            }
+        }else{
+          intent.setDataAndType(Uri.fromFile(new File(result.getImages().get(0).getOriginalPath())),"image/*");
+            for (int i = 0; i < result.getImages().size(); i++) {
+                file = new File(result.getImages().get(i).getOriginalPath());
+                imageUris.add(Uri.fromFile(file));
+            }
+        }
+        intent.putExtra(Intent.EXTRA_STREAM, imageUris);
+        intent.putExtra("Kdescription", kdescription);
+        hasTask=false;
+        mTResult=null;
+        this.startActivity(intent);
     }
 
     @Override
@@ -297,15 +383,20 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
 
     }
 
-    //语音合成
+    //语音合成进度
     @Override
     public void onSpeechSynthesizerProgress(int onBufferProgress, int onSpeakProgress) {
         show(String.format(getString(R.string.tts_toast_format), onBufferProgress, onSpeakProgress));
     }
 
+    //语音合成播发完毕
     @Override
     public void onSpeechSynthesizerCompleted(SpeechError error) {
-        speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
+        if (!isBroadcastMsg){
+            speechRecognizerPresenter.beginSpeechRecognizer(mIatDialog).show();
+        }else{
+            isBroadcastMsg=false;
+        }
         if (error == null) {
             show("播放完成");
         } else if (error != null) {
@@ -316,7 +407,8 @@ public class AutoSendMsgActivity extends Activity implements View.OnClickListene
     public  class MyBroadcastReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.e("Receiver", "这是静态的广播接受者（优先级500）---》" + intent.getStringExtra("msg"));
+            isBroadcastMsg=true;
+            intent.getStringExtra("msg");
             mResultText.setText(intent.getStringExtra("msg"));
             speechSynthesizerPresenter.begainSpeechSynthesizer(mTts, mResultText.getText().toString());
         }

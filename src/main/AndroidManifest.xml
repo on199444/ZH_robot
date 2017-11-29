@@ -22,7 +22,9 @@
     <uses-permission android:name="android.permission.REORDER_TASKS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.WRITE_SETTINGS"></uses-permission>
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+    <!--允许应用程序改变WIFI连接状态-->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
 
     <application
         android:name=".app.ZhWxAssistantApplication"
@@ -41,7 +43,9 @@
         </activity>
 
         <activity
-            android:name=".activity.AutoSendMsgActivity">
+            android:name=".activity.AutoSendMsgActivity"
+            android:launchMode="singleTask"
+            >
         </activity>
 
         <!-- 移动统计分析 -->
@@ -64,6 +68,16 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/wxassistantaccessibility"/>
         </service>
+
+        <provider
+            android:name=".base.MyProvider"
+            android:authorities="ZH_fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths" />
+        </provider>
     </application>
 
 </manifest>

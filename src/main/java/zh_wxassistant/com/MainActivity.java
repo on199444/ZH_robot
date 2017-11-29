@@ -1,6 +1,7 @@
 package zh_wxassistant.com;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -17,7 +18,7 @@ import android.widget.Toast;
 
 import zh_wxassistant.com.activity.AutoSendMsgActivity;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener{
+public class MainActivity extends Activity implements View.OnClickListener{
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,8 +30,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     // Me1nu 列表
-    String[] items = {"指定人名语音发送消息", "收到微信信息", "语音发送朋友圈", "朋友圈新动态处理",
-            "更多功能敬请期待"};
+    String[] items = {"指定联系人智能语音发送消息", "收到新消息智能语音播放", "智能语音发送朋友圈", "朋友圈懒人刷赞模式","宗晖微信抢红包助手",
+            "更多功能...."};
 
     @Override
     public void onClick(View view) {
@@ -114,6 +115,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             e.printStackTrace();
         }
     }
+
     public void show(String info){
         Toast.makeText(this,info, Toast.LENGTH_SHORT).show();
     }

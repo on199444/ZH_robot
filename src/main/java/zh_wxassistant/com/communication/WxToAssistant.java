@@ -5,6 +5,5 @@ package zh_wxassistant.com.communication;
  */
 
 public interface WxToAssistant {
-    void  name(String num);
-    void  msgContent(String text);
+    void  appointMsgToContacts(String info);
 }

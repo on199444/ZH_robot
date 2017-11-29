@@ -1,4 +1,5 @@
 package zh_wxassistant.com.service;
+
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -19,6 +20,7 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,21 +28,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+
 import zh_wxassistant.com.activity.AutoSendMsgActivity;
 import zh_wxassistant.com.app.ZhWxAssistantApplication;
 import zh_wxassistant.com.communication.WxToAssistant;
+
 /**
  * Created by Fzj on 2017/10/26.
  */
 
 public class AssistantService extends AccessibilityService implements WxToAssistant {
-    private static final String TAG="demo";
+    private static final String TAG = "demo";
     //用于存储开红包的HashMap集合对象
     private HashMap<AccessibilityNodeInfo, Boolean> hashMapParents = new HashMap<>();
     /**
      * 当启动服务的时候就会被调用
      */
-    AutoSendMsgActivity autoSendMsgActivity;
+    private AutoSendMsgActivity autoSendMsgActivity;
+    private String mCurrenClassName = null;
+    //用于接口回调处记录指定发送的用户名和内容
+    private String mNewMsg =" ";
+    private String mAppointContactsMsg = null;
+    private KeyguardManager.KeyguardLock kl;//键盘锁管理类
+    private Boolean islocked = false;
+
     @Override
     protected void onServiceConnected() {
         try {
@@ -50,7 +61,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
               注意点：区分编译与运行
               编译时刻加载类是静态加载类，运行时刻加载类是动态加载类
              */
-            autoSendMsgActivity = (AutoSendMsgActivity)Class.forName("zh_wxassistant.com.activity.AutoSendMsgActivity").newInstance();
+            autoSendMsgActivity = (AutoSendMsgActivity) Class.forName("zh_wxassistant.com.activity.AutoSendMsgActivity").newInstance();
             //avtivity向service定制消息机制（反射）
             autoSendMsgActivity.setWxToAssistantInerface(AssistantService.this);
         } catch (Exception e) {
@@ -65,45 +76,35 @@ public class AssistantService extends AccessibilityService implements WxToAssist
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         int eventType = event.getEventType();
-        String className = event.getClassName().toString();
-        Log.e("demo", "当前类名: " + className);
+        mCurrenClassName = event.getClassName().toString();
+        Log.e("demo", "当前类名: " + mCurrenClassName);
         switch (eventType) {
-            //当通知栏发生改变时
+            //当通知栏发生改变时，处理各种消息类型
             case AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED:
                 Log.e("demo", "通知栏状态改变");
-                if (isScreenLocked()) {
-                    wakeAndUnlock();//解锁
-                }
+                //解锁
+                if (isScreenLocked()) {wakeAndUnlock();}
                 List<CharSequence> texts = event.getText();
                 if (!texts.isEmpty()) {
                     for (CharSequence text : texts) {
-                        final String content = text.toString();
-                        if (content.contains("[微信红包]")) {
+                        mNewMsg = text.toString();
+                        //这里需要设置一个flag记住当前的信息类型？
+                        if (mNewMsg.contains("[微信红包]") || mNewMsg.contains("[图片]") || mNewMsg.contains("[语音]")) {
                             //模拟打开通知栏消息，即打开微信
                             openWx(event);
-                        } else if (content.contains("[图片]")) {
-                            Log.e(TAG,"图片GGa_5");
-                            openWx(event);
-                        } else if (content.contains("[语音]")) {
-                            Log.e(TAG,"语音GGaao");
-                            openWx(event);
                         } else {
-                            //文本消息
-                                Intent mWxIntent = new Intent(ZhWxAssistantApplication.getContextObject(), AutoSendMsgActivity.class);
-                                mWxIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                startActivity(mWxIntent);
-                                //形成订阅关系
-                                Timer mTimer = new Timer();
-                                TimerTask mTimerTask=new TimerTask()
-                                {
-                                    public void run()
-                                    {
-                                        Intent intent = new Intent("myBroadcastReceiver");
-                                        intent.putExtra("msg", content);
-                                        sendBroadcast(intent);
-                                    }
-                                };
-                                mTimer.schedule(mTimerTask, 3000);
+                            //如果是文本消息的话通过广播发送到App内进行朗读
+                            Intent mWxIntent = new Intent(ZhWxAssistantApplication.getContextObject(), AutoSendMsgActivity.class);
+                            mWxIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(mWxIntent);
+                            //延时发送广播,以免Activity接收不到
+                            Timer mTimer = new Timer();
+                            TimerTask mTimerTask = new TimerTask() {
+                                public void run() {
+                                    sendBroadcast(new Intent("myBroadcastReceiver").putExtra("msg", mNewMsg));
+                                }
+                            };
+                            mTimer.schedule(mTimerTask, 2000);
                         }
                     }
                 }
@@ -111,30 +112,35 @@ public class AssistantService extends AccessibilityService implements WxToAssist
             //当窗口的状态发生改变时
             case AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED:
                 Log.e("demo", "窗口事件改变");
-                if (className.equals("com.tencent.mm.ui.LauncherUI")) {
-
-                    Log.e("demo", "点击红包");
-                    //找到特定的联系人，然后发送打招呼
-                    if (mName != null && mTextContent != null) {
-                        Log.e("demo", "指定联系人：" + mName);
-                        autoSendMsg("com.tencent.mm:id/ak1");
+                if (mCurrenClassName.equals("com.tencent.mm.ui.LauncherUI")) {
+                    //在最近的联系人item下找到指定名字的联系人，发送消息
+                  if (mNewMsg.contains("[微信红包]")) {
+                        //进入聊天窗口，点击最后一个红包
+                        getLastPacket();
+                    } else if (mNewMsg.contains("[图片]")) {
+                        //去点击最后一张图片
+                        quitPacket("com.tencent.mm:id/ad7");
+                    } else if (mNewMsg.contains("[语音]")) {
+                        //去点击最后一个语音
+                        quitPacket("com.tencent.mm:id/aeq");
+                    }else if (mAppointContactsMsg.equals("朋友圈")){
+                        Log.e("demo","进来");
+                        findComp("com.tencent.mm:id/c2z");
+                    }else if (mAppointContactsMsg != null){
+                        appointContactsSendMsg(mAppointContactsMsg,"com.tencent.mm:id/aoj");
                     }
-                    //进入聊天窗口，点击最后一个红包
-//                    getLastPacket();
-                    //去点击最后一张图片
-//                    quitPacket("com.tencent.mm:id/a_5");
-                    //去点击最后一个语音
-                    quitPacket("com.tencent.mm:id/aao");
-                } else if (className.equals("com.tencent.mm.plugin.luckymoney.ui.En_fba4b94f")) {
+
+                } else if (mCurrenClassName.equals("com.tencent.mm.plugin.luckymoney.ui.En_fba4b94f")) {
                     //开红包窗口
                     Log.e("demo", "开红包");
                     openPacket("com.tencent.mm:id/brt");
-                } else if (className.equals("com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyDetailUI")) {
+                } else if (mCurrenClassName.equals("com.tencent.mm.plugin.luckymoney.ui.LuckyMoneyDetailUI")) {
                     //红包详情窗口退出红包
                     Log.e("demo", "退出红包");
-                    quitPacket("com.tencent.mm:id/hg");
-                }else if (className.equals("com.tencent.mm.plugin.sns.ui.En_424b8e16")){
-                    Log.e(TAG,"到朋友圈了");
+                    quitPacket("com.tencent.mm:id/hj");
+                } else if (mCurrenClassName.equals("com.tencent.mm.plugin.sns.ui.En_424b8e16")) {
+                    Log.e(TAG, "朋友圈");
+
                 }
                 break;
         }
@@ -155,9 +161,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
 
     /**
      * 判断指定的应用是否在前台运行
-     *
-     * @param packageName
-     * @return
      */
     private boolean isAppForeground(String packageName) {
         ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -169,6 +172,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         }
         return false;
     }
+
     /**
      * 系统是否在锁屏状态
      */
@@ -176,9 +180,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         KeyguardManager keyguardManager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         return keyguardManager.inKeyguardRestrictedInputMode();
     }
-
-    private KeyguardManager.KeyguardLock kl;//键盘锁管理类
-    private Boolean islocked = false;
 
     private void wakeAndUnlock() {
         islocked = true;
@@ -195,7 +196,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         kl.disableKeyguard();
     }
 
-    //
     private void release() {
         if (islocked && kl != null) {
             android.util.Log.d("maptrix", "release the lock");
@@ -264,7 +264,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         }
     }
 
-
     /**
      * 通过ID获取控件，并进行模拟点击
      *
@@ -282,7 +281,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
     }
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-    private void quitPacket(String clickId) {
+        private void quitPacket(String clickId) {
 //        pressBackButton();
         AccessibilityNodeInfo nodeInfo = getRootInActiveWindow();
         if (nodeInfo != null) {
@@ -301,18 +300,35 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         }
     }
 
-    /**
-     * 通过ID获取控件，并进行模拟点击
-     * @param text
-     */
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-    private void autoSendMsg(String text) {
+    private void findComp(String clickId){
         AccessibilityNodeInfo nodeInfo = getRootInActiveWindow();
         if (nodeInfo != null) {
-            List<AccessibilityNodeInfo> list = nodeInfo.findAccessibilityNodeInfosByViewId(text);
+            List<AccessibilityNodeInfo> list = nodeInfo.findAccessibilityNodeInfosByViewId(clickId);
             for (AccessibilityNodeInfo item : list) {
-                //在聊天列表项找到指定的联系人
-                if (item.getText().toString().equals(mName)) {
+                AccessibilityNodeInfo parent = item;
+                Log.e("demo",parent.getText().toString());
+                while (parent != null) {
+                    if (parent.isClickable()) {
+                        parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                        break;
+                    }
+                    parent = parent.getParent();
+                }
+            }
+        }
+    }
+
+    /**
+     * 通过ID获取控件，并进行模拟点击
+     */
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
+    private void appointContactsSendMsg(String contacts, String  clickid) {
+        AccessibilityNodeInfo nodeInfo = getRootInActiveWindow();
+        if (nodeInfo != null) {
+            //在聊天列表项找到指定的联系人,这里今后应该改进为全局查找而不局限于当前的用户界面
+            List<AccessibilityNodeInfo> list = nodeInfo.findAccessibilityNodeInfosByViewId(clickid);
+            for (AccessibilityNodeInfo item : list) {
+                if (contacts.contains(item.getText().toString())) {
                     AccessibilityNodeInfo parent = item;
                     while (parent != null) {
                         if (parent.isClickable()) {
@@ -337,7 +353,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         //进入到窗口通过AccessAbalityService得到根视图树
         AccessibilityNodeInfo rootNode = getRootInActiveWindow();
         if (rootNode != null) {
-            return findEditText(rootNode, " " + mTextContent);
+            return findEditText(rootNode, " " + mAppointContactsMsg);
         }
         return false;
     }
@@ -354,8 +370,8 @@ public class AssistantService extends AccessibilityService implements WxToAssist
             if (list != null && list.size() > 0) {
                 for (AccessibilityNodeInfo n : list) {
                     n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    mName = null;
-                    mTextContent = null;
+                    //成功回应消息后清空接受用户名和消息
+                    mAppointContactsMsg = null;
                 }
             } else {
                 List<AccessibilityNodeInfo> liste = nodeInfo.findAccessibilityNodeInfosByText("Send");
@@ -363,14 +379,14 @@ public class AssistantService extends AccessibilityService implements WxToAssist
                 if (liste != null && liste.size() > 0) {
                     for (AccessibilityNodeInfo n : liste) {
                         n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                        mName = null;
-                        mTextContent = null;
+                        mAppointContactsMsg = null;
                     }
                 }
             }
             pressBackButton();
         }
     }
+
     /*
    * @param rootNode 传入的聊天根视图树
    * @param content  回复的文本内容
@@ -381,12 +397,9 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         //遍历子ViewGroup
         for (int i = 0; i < count; i++) {
             AccessibilityNodeInfo nodeInfo = rootNode.getChild(i);
-            if (nodeInfo == null) {
-                android.util.Log.d("maptrix", "nodeinfo = null");
-                continue;
-                //没有拿到对象结束本次循环开启下次循环
+            //没有拿到对象结束本次循环开启下次循环
+            if (nodeInfo == null) {continue;
             }
-
             android.util.Log.d("maptrix", "class=" + nodeInfo.getClassName());
             android.util.Log.e("maptrix", "ds=" + nodeInfo.getContentDescription());
             //拿到对象后获取内容描述
@@ -401,7 +414,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
 //                }
 //            }
 
-            //判断是否是输入框
+            //聊天界面只有一个输入框判断是否是输入框
             if ("android.widget.EditText".equals(nodeInfo.getClassName())) {
                 android.util.Log.i("maptrix", "==================");
                 Bundle arguments = new Bundle();
@@ -425,7 +438,6 @@ public class AssistantService extends AccessibilityService implements WxToAssist
                 nodeInfo.performAction(AccessibilityNodeInfo.ACTION_PASTE);
                 return true;
             }
-
             if (findEditText(nodeInfo, content)) {
                 return true;
             }
@@ -442,6 +454,7 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         home.addCategory(Intent.CATEGORY_HOME);
         startActivity(home);
     }
+
     /**
      * 模拟back按键
      */
@@ -459,18 +472,10 @@ public class AssistantService extends AccessibilityService implements WxToAssist
         Log.w("dome", "停止AssistantService服务");
     }
 
-    //利用接口回调拿到用户信息
-    private String mName = null;
-    private String mTextContent = null;
+    //利用接口回调拿到用户信息,截取信息的前4个字为用户名
     @Override
-    public void name(String name) {
-        this.mName = name;
-        Log.e("demo", "从activity传过来的数值类型：" + mName);
-    }
-
-    @Override
-    public void msgContent(String textContent) {
-        this.mTextContent = textContent;
-        Log.e("demo", "从activity传过来的字符串类型：" + mTextContent);
+    public void appointMsgToContacts(String info) {
+        this.mAppointContactsMsg = info;
+        Log.e("demo", "从activity传过来的字符串类型：" + mAppointContactsMsg);
     }
 }
